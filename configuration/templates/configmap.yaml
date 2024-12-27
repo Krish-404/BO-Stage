@@ -5,7 +5,7 @@ metadata:
 data:
   ALL_SUB_CATEGORY_TAB_IMAGE_URL: "https://better-how-to-play.s3.ap-south-1.amazonaws.com/unselect_all.png"
   ALLOWED_HOSTS: '["*"]'
-  DB_HOST: "10.250.128.10" # added GCP SQL internal IP
+  DB_HOST: "10.250.128.10" 
   DB_NAME: "better_opinions_integration_db"
   DB_PASSWORD: "better_app_admin"
   DB_PORT: "5432"
