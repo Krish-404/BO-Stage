@@ -49,7 +49,7 @@ jobs:
           
       - name: Configure kubectl
         run: |
-          gcloud container clusters get-credentials demo-cluster --region asia-south1 --project bo-stage
+          gcloud container clusters get-credentials autopilot-bo-cluster --region asia-south1 --project bo-stage
           
       - name: Deploy Helm Chart
         id: deploy
