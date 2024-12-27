@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.configMap.name | quote }}
+  name: {{ .Values.configMap.name | default "default-configmap-name" | quote }}
 data:
   ALL_SUB_CATEGORY_TAB_IMAGE_URL: "https://better-how-to-play.s3.ap-south-1.amazonaws.com/unselect_all.png"
   ALLOWED_HOSTS: '["*"]'
