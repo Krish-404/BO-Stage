@@ -1,0 +1,9 @@
+global:
+  environment: staging
+
+configMap:
+  name: better-backend-app-config
+
+django:
+  appName: better-backend-app-django
+  host: api-v2.integration-betteropinions.com

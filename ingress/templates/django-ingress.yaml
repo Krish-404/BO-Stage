@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.django.appName }}
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "gke-ingress-static-ip"
+    networking.gke.io/managed-certificates: "gce-openssl-cert"
+    ingress.gcp.kubernetes.io/ssl-redirect: "true"
+    cloud.google.com/load-balancer-neg-ready: "true"
+    # kubernetes.io/ingress.allow-http: "false"
+spec:
+  rules:
+  - host: {{ .Values.django.host }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.django.appName }}
+            port:
+              number: 80

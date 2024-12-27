@@ -1,0 +1,183 @@
+To deploy a Django application with Redis and RabbitMQ on Kubernetes using Helm, you can create a Helm chart for your Django app and include Redis and RabbitMQ as subcharts. This approach enables modular, manageable configurations for each service. Here’s how to set it up.
+
+### Step 1: Install Helm and Add Required Repositories
+
+If Helm isn’t installed yet, [install Helm](https://helm.sh/docs/intro/install/). Then, add the Bitnami repository for Redis and RabbitMQ.
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+```
+
+### Step 2: Create a Helm Chart for the Django Application
+
+Generate a new Helm chart for your Django app:
+
+```bash
+helm create django-app
+```
+
+This creates a directory structure with some default template files.
+
+### Step 3: Configure the Chart Dependencies
+
+Edit `requirements.yaml` (or `Chart.yaml` if you’re using a later Helm version), and add Redis and RabbitMQ as dependencies:
+
+```yaml
+# django-app/Chart.yaml
+apiVersion: v2
+name: django-app
+description: A Django application with Redis and RabbitMQ
+version: 0.1.0
+dependencies:
+  - name: redis
+    version: "17.0.1"
+    repository: "https://charts.bitnami.com/bitnami"
+  - name: rabbitmq
+    version: "11.0.4"
+    repository: "https://charts.bitnami.com/bitnami"
+```
+
+Run the following command to update the dependencies:
+
+```bash
+helm dependency update django-app
+```
+
+This downloads the Redis and RabbitMQ charts and includes them as subcharts in `django-app/charts/`.
+
+### Step 4: Configure Values for Redis, RabbitMQ, and Django
+
+In the `values.yaml` file, configure Redis, RabbitMQ, and Django. 
+
+```yaml
+# django-app/values.yaml
+
+# Redis configuration
+redis:
+  auth:
+    enabled: false  # Can be set to true for production
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+# RabbitMQ configuration
+rabbitmq:
+  auth:
+    username: user
+    password: password
+  persistence:
+    enabled: true
+    size: 1Gi
+
+# Django application configuration
+djangoApp:
+  image:
+    repository: your-django-image
+    tag: latest
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    DJANGO_REDIS_HOST: redis-master.default.svc.cluster.local  # Redis hostname
+    DJANGO_REDIS_PORT: 6379
+    DJANGO_RABBITMQ_HOST: rabbitmq.default.svc.cluster.local  # RabbitMQ hostname
+    DJANGO_RABBITMQ_PORT: 5672
+  volumeMounts:
+    - name: django-data
+      mountPath: /app/data
+  persistence:
+    enabled: true
+    size: 1Gi
+```
+
+### Step 5: Update `templates/deployment.yaml` for Django
+
+Update the `templates/deployment.yaml` to include environment variables for connecting to Redis and RabbitMQ.
+
+```yaml
+# django-app/templates/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "django-app.fullname" . }}
+  labels:
+    app: {{ include "django-app.name" . }}
+spec:
+  replicas: {{ .Values.djangoApp.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "django-app.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "django-app.name" . }}
+    spec:
+      containers:
+        - name: django-app
+          image: "{{ .Values.djangoApp.image.repository }}:{{ .Values.djangoApp.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.djangoApp.service.port }}
+          env:
+            - name: DJANGO_REDIS_HOST
+              value: "{{ .Values.djangoApp.env.DJANGO_REDIS_HOST }}"
+            - name: DJANGO_REDIS_PORT
+              value: "{{ .Values.djangoApp.env.DJANGO_REDIS_PORT }}"
+            - name: DJANGO_RABBITMQ_HOST
+              value: "{{ .Values.djangoApp.env.DJANGO_RABBITMQ_HOST }}"
+            - name: DJANGO_RABBITMQ_PORT
+              value: "{{ .Values.djangoApp.env.DJANGO_RABBITMQ_PORT }}"
+          volumeMounts:
+            - name: django-data
+              mountPath: /app/data
+      volumes:
+        - name: django-data
+          persistentVolumeClaim:
+            claimName: django-data-pvc
+```
+
+### Step 6: Configure the Django Service
+
+Define the Django service in `service.yaml` to expose it within the cluster.
+
+```yaml
+# django-app/templates/service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "django-app.fullname" . }}
+  labels:
+    app: {{ include "django-app.name" . }}
+spec:
+  type: {{ .Values.djangoApp.service.type }}
+  ports:
+    - port: {{ .Values.djangoApp.service.port }}
+      targetPort: 8000
+  selector:
+    app: {{ include "django-app.name" . }}
+```
+
+### Step 7: Deploy the Application
+
+Install the chart using Helm:
+
+```bash
+helm install django-app ./django-app
+```
+
+This command deploys your Django app with Redis and RabbitMQ on your Kubernetes cluster.
+
+### Step 8: Verify the Deployment
+
+To check if everything is running properly, you can use the following commands:
+
+```bash
+kubectl get pods
+kubectl get svc
+```
+
+Your Django application should be running with both Redis and RabbitMQ connected, as specified in the environment variables. You can access your Django application based on the service type configured (e.g., ClusterIP, NodePort, or LoadBalancer) or set up an Ingress for external access.

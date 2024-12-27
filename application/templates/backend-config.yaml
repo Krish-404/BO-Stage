@@ -1,0 +1,13 @@
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: django-backend-config
+spec:
+#Commented the health checkup part
+  healthCheck:
+    checkIntervalSec: 15
+    timeoutSec: 5 #increased the timeout
+    healthyThreshold: 1
+    unhealthyThreshold: 5
+    type: HTTP
+    requestPath: /health/  # Set the desired health check endpoint here

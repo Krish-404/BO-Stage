@@ -1,0 +1,93 @@
+name: Deploy RabbitMQ to GKE
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: bo-stage
+  GKE_CLUSTER: demo-cluster
+  GKE_ZONE: asia-south1
+  VALUE_PATH: rabbitMQ/values.yaml
+
+jobs:
+  setup:
+    uses: ./.github/workflows/install.yml
+    secrets: inherit
+
+  deploy:
+    needs: setup
+    name: Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v0.2.1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Install gke-gcloud-auth-plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE" --project "$PROJECT_ID"
+
+    - name: Add Bitnami Helm repo
+      run: |
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo update
+
+    - name: Deploy RabbitMQ
+      run: |
+        helm upgrade --install rabbitmq bitnami/rabbitmq -f $VALUE_PATH
+
+    - name: Wait for RabbitMQ pod to be ready
+      run: |
+        echo "Waiting for RabbitMQ pod to be ready..."
+        timeout=300
+        start_time=$(date +%s)
+        while true; do
+          pod_status=$(kubectl get pods -l app.kubernetes.io/name=rabbitmq -o jsonpath='{.items[0].status.phase}')
+          if [ "$pod_status" = "Running" ]; then
+            echo "RabbitMQ pod is now running."
+            break
+          fi
+          current_time=$(date +%s)
+          elapsed=$((current_time - start_time))
+          if [ $elapsed -ge $timeout ]; then
+            echo "Timeout waiting for RabbitMQ pod to be ready."
+            exit 1
+          fi
+          echo "Waiting... (${elapsed}s elapsed)"
+          sleep 10
+        done
+
+    - name: Check Pod Status
+      run: |
+        kubectl get pods -l app.kubernetes.io/name=rabbitmq -o wide
+        kubectl describe pods -l app.kubernetes.io/name=rabbitmq
+        kubectl get events --sort-by=.metadata.creationTimestamp
+
+    - name: Check RabbitMQ Logs
+      run: |
+        kubectl logs -l app.kubernetes.io/name=rabbitmq --all-containers --tail=100
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods -l app.kubernetes.io/name=rabbitmq
+        kubectl logs $(kubectl get pods -l app.kubernetes.io/name=rabbitmq -o jsonpath="{.items[0].metadata.name}")
+
+    - name: Check RabbitMQ service
+      run: |
+        kubectl get services | grep rabbitmq
+        
+    - name: Print RabbitMQ admin credentials
+      run: |
+        echo "RabbitMQ admin username: $(kubectl get secret --namespace default rabbitmq-test -o jsonpath="{.data.rabbitmq-username}" | base64 --decode)"
+        echo "RabbitMQ admin password: $(kubectl get secret --namespace default rabbitmq-test -o jsonpath="{.data.rabbitmq-password}" | base64 --decode)"

@@ -1,0 +1,59 @@
+datadog:
+  apiKey: 157ab06f4377299d5d92cbce09f9c13c
+  appKey: fb04b1c0bc7052a30e38f368ab4e6918e1b30139
+  clusterName: demo-cluster
+
+  # The site of the Datadog intake to send Agent data to (example: `us3.datadoghq.com`)
+  # Default value is `datadoghq.com' (the US1 site)
+  # Documentation: https://docs.datadoghq.com/getting_started/site/
+  site: datadoghq.com
+
+  # Optional: Redis integration
+  redis:
+    enabled: true
+    instances:
+      - host: redis-service
+        port: 6379
+  
+  # Optional: RabbitMQ integration
+  rabbitmq:
+    enabled: true
+    instances:
+      - host: rabbitmq-service
+        port: 15672
+        username: admin
+        password: STs3gz0RCpIiOka
+
+agents:
+  containers:
+    agent:
+      # resources for the Agent container
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+
+    traceAgent:
+      # resources for the Trace Agent container
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+
+    processAgent:
+      # resources for the Process Agent container
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+
+  priorityClassCreate: true
+
+providers:
+  gke:
+    autopilot: true
+
+  # Enable Logs Collection
+  logs:
+    enabled: true
+  

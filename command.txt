@@ -1,0 +1,178 @@
+################################################################################
+            #### Mac install gcloud using brew ####
+################################################################################
+
+1. brew install --cask google-cloud-sdk
+2. gcloud components install gke-gcloud-auth-plugin
+3. gcloud config set project PROJECT_ID
+            gcloud config set project betteropinions-test
+################################################################################
+
+
+################################################################################
+                #### VPC Network Setup #####
+################################################################################
+1. gcloud compute networks create better-vpc-network
+################################################################################
+
+
+################################################################################
+            ####      gcloud Create Cluster    ####
+################################################################################
+1. gcloud container clusters list
+2. gcloud container --project "betteropinions-test" clusters create-auto "demo-cluster" \
+            --network=better-vpc-network --subnetwork=gke-subnet --region "asia-south1" \
+            --enable-master-authorized-networks
+3. gcloud container clusters delete demo-cluster --region=asia-south1
+################################################################################
+
+
+################################################################################
+            ####   Cloud SQL Server - Postgres  ####
+################################################################################
+1. gcloud beta sql connect better-opinions-integration-db -d better_opinions_integration_db -u better_app_admin;
+CONNECT:
+    gcloud projects add-iam-policy-binding betteropinions-test \
+            --member=serviceAccount:maitraya.b@betteropinions.in  \
+            --role=roles/cloudsql.client
+################################################################################
+
+
+################################################################################
+            #### RabbitMQ Deployment using HELM ####
+################################################################################
+A. Modified values.yaml [https://github.com/bitnami/charts/blob/main/bitnami/rabbitmq/values.yaml]
+    1. Image tags
+    2. Resources
+    3. Replica Count
+    4. Storage Class and Storage Capacity
+    5. Auth
+
+B. Use below command for deployment on default namespace
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+    helm install rabbitmq bitnami/rabbitmq -f rabbitMQ/values.yaml
+
+Useful Commands
+----------------
+Credentials:
+    echo "Username      : admin"
+    echo "Password      : $(kubectl get secret --namespace default rabbitmq -o \
+                                            jsonpath="{.data.rabbitmq-password}" | base64 -d)"
+    echo "ErLang Cookie : $(kubectl get secret --namespace default rabbitmq -o \
+                                            jsonpath="{.data.rabbitmq-erlang-cookie}" | base64 -d)"
+
+RabbitMQ can be accessed within the cluster on port 5672 at rabbitmq.default.svc.cluster.local
+
+To access for outside the cluster, perform the following steps:
+
+To Access the RabbitMQ AMQP port:
+
+    echo "URL : amqp://127.0.0.1:5672/"
+    kubectl port-forward --namespace default svc/rabbitmq 5672:5672
+
+To Access the RabbitMQ Management interface:
+
+    echo "URL : http://127.0.0.1:15672/"
+    kubectl port-forward --namespace default svc/rabbitmq 15672:15672
+################################################################################
+
+
+################################################################################
+            #### Redis HA Deployment using HELM ####
+################################################################################
+A. Modified values.yaml [https://github.com/bitnami/charts/blob/main/bitnami/redis/values.yaml]
+    1. Image tags
+    2. Resources
+    3. Replica Count
+    4. Sentinel
+    4. Storage Class and Storage Capacity (For master/replica)
+    5. Auth
+
+B. Use below command for deployment on default namespace
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+    helm install redis bitnami/redis -f redis/values.yaml
+
+Useful Commands
+----------------
+** Please be patient while the chart is being deployed **
+
+Redis&reg; can be accessed via port 6379 on the following DNS name from within your cluster:
+
+    redis-sentinel.default.svc.cluster.local for read only operations
+
+To connect to your Redis&reg; server:
+
+1. Run a Redis&reg; pod that you can use as a client:
+
+   kubectl run --namespace default redis-client --restart='Never'  --env REDIS_PASSWORD=$REDIS_PASSWORD  \
+        --image docker.io/bitnami/redis:7.4.1-debian-12-r0 --command -- sleep infinity
+
+   Use the following command to attach to the pod:
+
+   kubectl exec --tty -i redis-client \
+   --namespace default -- bash
+
+2. Connect using the Redis&reg; CLI:
+   REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -h redis-sentinel -p 6379 # Read only operations
+   REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -h redis-sentinel -p 26379 # Sentinel access
+
+To connect to your database from outside the cluster execute the following commands:
+
+    kubectl port-forward --namespace default svc/redis-sentinel 6379:6379 &
+    REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -h 127.0.0.1 -p 6379
+################################################################################
+
+
+################################################################################
+            #### Django Deployment using HELM ####
+################################################################################
+A. Created custom helm package
+    Dependencies:
+        1. helm install django-env ./configuration
+B. Use below command for deployment on default namespace
+    helm install backend-application ./application
+
+C. Deploy related components using below commands:
+        a. gcloud compute addresses create gke-ingress-static-ip --global
+            openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj \
+                                             "/CN=api-v2.integration-betteropinions.com"
+        b. kubectl create secret tls gke-openssl-cert --cert=ssl/tls.crt --key=ssl/tls.key
+    1. helm install django-ingress ./ingress
+    2. helm install django-hpa ./autoscalling
+
+Useful Commands
+----------------
+1. kubectl port-forward --namespace default svc/better-backend-app-django 8000:8000
+################################################################################
+
+
+################################################################################
+            #### Datadog Deployment using HELM ####
+################################################################################
+1. Install using below commands
+    helm repo add datadog https://helm.datadoghq.com
+    helm repo update
+    helm install datadog datadog/datadog -f datadog/values.yaml
+################################################################################
+
+
+
+################################################################################
+            #### Armor (WAF) Deployment using gcloud ####
+################################################################################
+1. gcloud services enable compute.googleapis.com
+2. gcloud compute security-policies create block-non-india --description="Block traffic from non-Indian IPs"
+3. gcloud compute security-policies rules create 1000 \
+        --security-policy=block-non-india \
+        --expression="!(origin.region_code == 'IN')" \
+        --action=deny-403 \
+        --description="Block all traffic not from India" \
+        --preview
+4. gcloud compute backend-services update <YOUR_BACKEND_SERVICE_NAME> \
+        --security-policy=block-non-india \
+        --global
+
+################################################################################
+
