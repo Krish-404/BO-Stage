@@ -33,15 +33,56 @@ jobs:
         run: |
           gcloud auth configure-docker asia-south1-docker.pkg.dev
 
-      - name: Build Docker Image
-        run: |
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
-          docker tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:latest
+      - name: Trigger Docker Build and Push Workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          repository: <owner>/<repo> # Replace <owner>/<repo> with the target repository name
+          event-type: trigger-docker-build
+          token: ${{ secrets.TRIGGER_REPO_PAT }}
+          client-payload: >
+            {
+              "project_id": "${{ env.PROJECT_ID }}",
+              "region": "${{ env.REGION }}",
+              "artifact_repo": "${{ env.ARTIFACT_REPO }}",
+              "image_name": "${{ env.IMAGE_NAME }}",
+              "github_sha": "${{ github.sha }}"
+            }
 
-      - name: Push Docker Image to Artifact Registry
-        run: |
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:latest
+      - name: Wait for Docker Build and Push Workflow Completion
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const token = process.env.TRIGGER_REPO_PAT;
+            const { Octokit } = require("@octokit/rest");
+            const octokit = new Octokit({ auth: token });
+
+            const owner = "<owner>";   
+            const repo = "<repo>";  
+            const runs = await octokit.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              event: "repository_dispatch",
+              per_page: 1,
+            });
+
+            const run = runs.data.workflow_runs[0];
+            if (!run) throw new Error("No workflow run found for repository_dispatch event.");
+            let status = run.status;
+            while (status !== "completed") {
+              await new Promise((resolve) => setTimeout(resolve, 30000)); 
+              const updatedRun = await octokit.rest.actions.getWorkflowRun({
+                owner,
+                repo,
+                run_id: run.id,
+              });
+              status = updatedRun.data.status;
+            }
+
+            if (run.conclusion !== "success") {
+              throw new Error("Docker Build and Push Workflow failed!");
+            }
+        env:
+          TRIGGER_REPO_PAT: ${{ secrets.TRIGGER_REPO_PAT }}
           
       - name: Install gke-gcloud-auth-plugin
         run: |
