@@ -35,12 +35,12 @@ env:
   IMAGE_NAME: backend-application
 
 jobs:
-  setup:
-    uses: ./.github/workflows/install.yml
-    secrets: inherit
+  # setup:
+    # uses: ./.github/workflows/install.yml
+    # secrets: inherit
 
   deploy:
-    needs: setup
+    # needs: setup
     runs-on: ubuntu-latest
 
     steps:
