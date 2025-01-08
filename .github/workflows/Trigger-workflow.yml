@@ -1,4 +1,4 @@
-name: Backend Application and Configuration
+name: Trigger workflow
 
 on:
   workflow_dispatch:
