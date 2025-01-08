@@ -3,6 +3,9 @@ name: Deploy Django HPA
 on:
   workflow_dispatch:
 
+env:
+  PROJECT_ID: bo-stage
+
 jobs:
   setup:
     uses: ./.github/workflows/install.yml
