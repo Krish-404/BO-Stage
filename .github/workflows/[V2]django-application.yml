@@ -118,27 +118,27 @@ jobs:
               core.setFailed('Client workflow did not complete successfully or timed out.');
             }
 
-      - name: Install gke-gcloud-auth-plugin
-        run: |
-          gcloud components install gke-gcloud-auth-plugin
+      # - name: Install gke-gcloud-auth-plugin
+      #   run: |
+      #     gcloud components install gke-gcloud-auth-plugin
 
-      - name: Configure kubectl
-        run: |
-          gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
+      # - name: Configure kubectl
+      #   run: |
+      #     gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
 
-      - name: Deploy Helm Chart
-        id: deploy
-        run: |
-          helm upgrade --install backend-application ./application --set image.tag=${{ github.sha }} || echo "::set-output name=deploy_failed::true"
+      # - name: Deploy Helm Chart
+      #   id: deploy
+      #   run: |
+      #     helm upgrade --install backend-application ./application --set image.tag=${{ github.sha }} || echo "::set-output name=deploy_failed::true"
 
-      - name: Rollback if deployment failed
-        if: steps.deploy.outputs.deploy_failed == 'true'
-        run: |
-          LAST_REVISION=$(helm history backend-application -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
-          if [ -n "$LAST_REVISION" ]; then
-            echo "Rolling back to revision $LAST_REVISION"
-            helm rollback backend-application $LAST_REVISION
-          else
-            echo "No previous successful revision found. Unable to rollback."
-            exit 1
-          fi
+      # - name: Rollback if deployment failed
+      #   if: steps.deploy.outputs.deploy_failed == 'true'
+      #   run: |
+      #     LAST_REVISION=$(helm history backend-application -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
+      #     if [ -n "$LAST_REVISION" ]; then
+      #       echo "Rolling back to revision $LAST_REVISION"
+      #       helm rollback backend-application $LAST_REVISION
+      #     else
+      #       echo "No previous successful revision found. Unable to rollback."
+      #       exit 1
+      #     fi
