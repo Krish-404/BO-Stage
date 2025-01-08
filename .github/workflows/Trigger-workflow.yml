@@ -65,7 +65,7 @@ jobs:
               owner: 'code-owner-betteropinions',
               repo: 'BetterOpinions-BE-Django',
               workflow_id: 'build_push_gcp.yml',  
-              ref: 'feature/docker-gcp-support', 
+              ref: 'fearture/docker-gcp-support', 
               inputs: {
                 run_id: '${{ github.run_id }}'
               }
