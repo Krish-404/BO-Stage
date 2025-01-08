@@ -34,10 +34,10 @@ on:
 env:
   IMAGE_NAME: backend-application
 
-# jobs:
-#   setup:
-#     uses: ./.github/workflows/install.yml
-#     secrets: inherit
+jobs:
+  setup:
+    uses: ./.github/workflows/install.yml
+    secrets: inherit
 
   deploy:
     needs: setup
