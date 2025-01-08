@@ -62,8 +62,8 @@ jobs:
             const response = await github.rest.actions.createWorkflowDispatch({
               owner: 'code-owner-betteropinions',
               repo: 'BetterOpinions-BE-Django',
-              workflow_id: 'build_push_gcp.yml',  # Ensure this is the correct workflow file
-              ref: 'feature/docker-gcp-support',  # Ensure the correct branch name
+              workflow_id: 'build_push_gcp.yml',  
+              ref: 'feature/docker-gcp-support', 
               inputs: {
                 project_id: '${{ inputs.project_id }}',
                 region: '${{ inputs.region }}',
@@ -80,8 +80,8 @@ jobs:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
           script: |
             const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-            const maxAttempts = 30;  # Maximum retries
-            const interval = 60 * 1000;  # 1 minute interval between retries
+            const maxAttempts = 30;  
+            const interval = 60 * 1000; 
             let attempts = 0;
             let success = false;
 
@@ -90,7 +90,7 @@ jobs:
                 owner: 'code-owner-betteropinions',
                 repo: 'BetterOpinions-BE-Django',
                 workflow_id: 'build_push_gcp.yml',
-                branch: 'feature/docker-gcp-support',  # Ensure correct branch name
+                branch: 'feature/docker-gcp-support',  
                 per_page: 1
               });
 
