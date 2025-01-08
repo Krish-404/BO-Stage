@@ -42,23 +42,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-# Step 3: Authenticate with Google Cloud
       - name: Set up GCP authentication
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}  # Service account key
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2.1.2
         with:
-          project_id: ${{ inputs.PROJECT_ID }}
+          project_id: ${{ inputs.project_id }}
 
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ inputs.region }}-docker.pkg.dev
 
       - name: Trigger Client Workflow
-        id: trigger-client-workflow
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
@@ -75,7 +73,6 @@ jobs:
             core.info('Triggered client workflow: build_push_gcp.yml on branch feature/docker-gcp-support.');
 
       - name: Wait for Client Workflow Success
-        id: wait-client-workflow
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
