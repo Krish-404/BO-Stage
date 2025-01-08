@@ -91,3 +91,4 @@ jobs:
           else
             echo "No previous successful revision found. Unable to rollback."
             exit 1
+          fi
