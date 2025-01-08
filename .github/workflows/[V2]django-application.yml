@@ -2,18 +2,43 @@ name: Deploy Backend Application and Configuration
 
 on:
   workflow_dispatch:
+    inputs:
+      project_id:
+        description: 'Select the Google Cloud Project'
+        required: true
+        type: string
+        default: bo-stage
+        options:
+          - bo-stage
+          - bo-prod
+          - bo-dev
+      region:
+        description: 'Select the Region'
+        required: true
+        type: string
+        default: asia-south1
+        options:
+          - asia-south1
+          - us-central1
+          - europe-west1
+      artifact_repo:
+        description: 'Select the Artifact Repository'
+        required: true
+        type: string
+        default: bo-backend-django
+        options:
+          - bo-backend-django
+          - bo-backend-node
+          - bo-backend-go
 
 env:
-  PROJECT_ID: bo-stage
-  REGION: asia-south1
-  ARTIFACT_REPO: bo-backend-django
   IMAGE_NAME: backend-application
-  
+
 jobs:
   setup:
     uses: ./.github/workflows/install.yml
     secrets: inherit
-    
+
   deploy:
     needs: setup
     runs-on: ubuntu-latest
@@ -21,77 +46,85 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        
+
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v0.2.0
         with:
-          project_id: bo-stage
+          project_id: ${{ inputs.project_id }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker asia-south1-docker.pkg.dev
+          gcloud auth configure-docker ${{ inputs.region }}-docker.pkg.dev
 
-      - name: Trigger Docker Build and Push Workflow
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          repository: <owner>/<repo> # Replace <owner>/<repo> with the target repository name
-          event-type: trigger-docker-build
-          token: ${{ secrets.TRIGGER_REPO_PAT }}
-          client-payload: >
-            {
-              "project_id": "${{ env.PROJECT_ID }}",
-              "region": "${{ env.REGION }}",
-              "artifact_repo": "${{ env.ARTIFACT_REPO }}",
-              "image_name": "${{ env.IMAGE_NAME }}",
-              "github_sha": "${{ github.sha }}"
-            }
-
-      - name: Wait for Docker Build and Push Workflow Completion
+      - name: Trigger Client Workflow
+        id: trigger-client-workflow
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.TRIGGER_REPO_PAT }}
           script: |
-            const token = process.env.TRIGGER_REPO_PAT;
-            const { Octokit } = require("@octokit/rest");
-            const octokit = new Octokit({ auth: token });
-
-            const owner = "<owner>";   
-            const repo = "<repo>";  
-            const runs = await octokit.rest.actions.listWorkflowRunsForRepo({
-              owner,
-              repo,
-              event: "repository_dispatch",
-              per_page: 1,
+            const response = await github.rest.actions.createWorkflowDispatch({
+              owner: 'code-owner-betteropinions',
+              repo: 'BetterOpinions-BE-Django',
+              workflow_id: 'build-and-push.yml', # Workflow file in the target repo
+              ref: 'main', # Branch in the target repo
+              inputs: {
+                project_id: '${{ inputs.project_id }}',
+                region: '${{ inputs.region }}',
+                artifact_repo: '${{ inputs.artifact_repo }}'
+              }
             });
+            core.info('Triggered client workflow: build-and-push.yml on branch main.');
 
-            const run = runs.data.workflow_runs[0];
-            if (!run) throw new Error("No workflow run found for repository_dispatch event.");
-            let status = run.status;
-            while (status !== "completed") {
-              await new Promise((resolve) => setTimeout(resolve, 30000)); 
-              const updatedRun = await octokit.rest.actions.getWorkflowRun({
-                owner,
-                repo,
-                run_id: run.id,
+      - name: Wait for Client Workflow Success
+        id: wait-client-workflow
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.TRIGGER_REPO_PAT }}
+          script: |
+            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const maxAttempts = 30; // Max wait attempts (30 minutes)
+            const interval = 60 * 1000; // Check every 1 minute
+            let attempts = 0;
+            let success = false;
+
+            while (attempts < maxAttempts) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: 'code-owner-betteropinions',
+                repo: 'BetterOpinions-BE-Django',
+                workflow_id: 'build-and-push.yml',
+                branch: 'main',
+                per_page: 1
               });
-              status = updatedRun.data.status;
+
+              const latestRun = runs.data.workflow_runs[0];
+              if (latestRun && latestRun.status === 'completed' && latestRun.conclusion === 'success') {
+                success = true;
+                core.info(`Client workflow succeeded. Run ID: ${latestRun.id}`);
+                break;
+              } else if (latestRun && latestRun.status === 'completed') {
+                core.setFailed('Client workflow completed but failed.');
+                break;
+              }
+
+              core.info(`Waiting for client workflow to complete... Attempt ${attempts + 1}`);
+              await wait(interval);
+              attempts++;
             }
 
-            if (run.conclusion !== "success") {
-              throw new Error("Docker Build and Push Workflow failed!");
+            if (!success) {
+              core.setFailed('Client workflow did not complete successfully or timed out.');
             }
-        env:
-          TRIGGER_REPO_PAT: ${{ secrets.TRIGGER_REPO_PAT }}
-          
+
       - name: Install gke-gcloud-auth-plugin
         run: |
           gcloud components install gke-gcloud-auth-plugin
-          
+
       - name: Configure kubectl
         run: |
-          gcloud container clusters get-credentials autopilot-bo-cluster --region asia-south1 --project bo-stage
-          
+          gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
+
       - name: Deploy Helm Chart
         id: deploy
         run: |
