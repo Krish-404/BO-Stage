@@ -72,7 +72,7 @@ jobs:
             });
             core.info('Triggered client workflow: build_push_gcp.yml on branch feature/docker-gcp-support.');
 
-      - name: Wait for Client Workflow Success
+- name: Wait for Client Workflow Success
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
@@ -89,17 +89,25 @@ jobs:
                 repo: 'BetterOpinions-BE-Django',
                 workflow_id: 'build_push_gcp.yml',
                 branch: 'feature/docker-gcp-support',  
-                per_page: 1
+                status: 'completed',
+                per_page: 5  // Fetch the last 5 completed runs
               });
 
-              const latestRun = runs.data.workflow_runs[0];
-              if (latestRun && latestRun.status === 'completed' && latestRun.conclusion === 'success') {
-                success = true;
-                core.info(`Client workflow succeeded. Run ID: ${latestRun.id}`);
-                break;
-              } else if (latestRun && latestRun.status === 'completed') {
-                core.setFailed('Client workflow completed but failed.');
-                break;
+              const recentRuns = runs.data.workflow_runs;
+              const targetRun = recentRuns.find(run => 
+                run.status === 'completed' && 
+                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)  // Within last 10 minutes
+              );
+
+              if (targetRun) {
+                if (targetRun.conclusion === 'success') {
+                  success = true;
+                  core.info(`Client workflow succeeded. Run ID: ${targetRun.id}`);
+                  break;
+                } else {
+                  core.setFailed(`Client workflow completed but failed. Run ID: ${targetRun.id}`);
+                  break;
+                }
               }
 
               core.info(`Waiting for client workflow to complete... Attempt ${attempts + 1}`);
