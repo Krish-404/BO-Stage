@@ -72,7 +72,7 @@ jobs:
               inputs: {
                 project_id: '${{ inputs.project_id }}',
                 region: '${{ inputs.region }}',
-                artifact_repo: '${{ inputs.artifact_repo }}'
+                artifact_repo: '${{ inputs.artifact_repo }}',
                 run_id: '${{ github.run_id }}'
               }
             });
