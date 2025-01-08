@@ -65,9 +65,6 @@ jobs:
               workflow_id: 'build_push_gcp.yml',  
               ref: 'feature/docker-gcp-support', 
               inputs: {
-                project_id: '${{ inputs.project_id }}',
-                region: '${{ inputs.region }}',
-                artifact_repo: '${{ inputs.artifact_repo }}',
                 run_id: '${{ github.run_id }}'
               }
             });
