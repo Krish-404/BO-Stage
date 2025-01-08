@@ -40,7 +40,7 @@ jobs:
     secrets: inherit
 
   deploy:
-    # needs: setup
+    needs: setup
     runs-on: ubuntu-22.04
 
     steps:
