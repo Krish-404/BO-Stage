@@ -95,8 +95,7 @@ jobs:
 
               const recentRuns = runs.data.workflow_runs;
               const targetRun = recentRuns.find(run => 
-                run.status === 'completed' && 
-                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)
+                run.status === 'completed'
               );
 
               if (targetRun) {
