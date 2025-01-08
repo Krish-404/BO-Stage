@@ -2,18 +2,43 @@ name: Deploy Backend Application and Configuration
 
 on:
   workflow_dispatch:
+    inputs:
+      project_id:
+        description: 'Select the Google Cloud Project'
+        required: true
+        type: string
+        default: bo-stage
+        options:
+          - bo-stage
+          - bo-prod
+          - bo-dev
+      region:
+        description: 'Select the Region'
+        required: true
+        type: string
+        default: asia-south1
+        options:
+          - asia-south1
+          - us-central1
+          - europe-west1
+      artifact_repo:
+        description: 'Select the Artifact Repository'
+        required: true
+        type: string
+        default: bo-backend-django
+        options:
+          - bo-backend-django
+          - bo-backend-node
+          - bo-backend-go
 
 env:
-  PROJECT_ID: bo-stage
-  REGION: asia-south1
-  ARTIFACT_REPO: bo-backend-django
   IMAGE_NAME: backend-application
-  
+
 jobs:
   setup:
     uses: ./.github/workflows/install.yml
     secrets: inherit
-    
+
   deploy:
     needs: setup
     runs-on: ubuntu-latest
@@ -21,36 +46,36 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        
+
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v0.2.0
         with:
-          project_id: bo-stage
+          project_id: ${{ inputs.project_id }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker asia-south1-docker.pkg.dev
+          gcloud auth configure-docker ${{ inputs.region }}-docker.pkg.dev
 
       - name: Build Docker Image
         run: |
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
-          docker tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:latest
+          docker build -t ${{ inputs.region }}-docker.pkg.dev/${{ inputs.project_id }}/${{ inputs.artifact_repo }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker tag ${{ inputs.region }}-docker.pkg.dev/${{ inputs.project_id }}/${{ inputs.artifact_repo }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ inputs.region }}-docker.pkg.dev/${{ inputs.project_id }}/${{ inputs.artifact_repo }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Push Docker Image to Artifact Registry
         run: |
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:latest
-          
+          docker push ${{ inputs.region }}-docker.pkg.dev/${{ inputs.project_id }}/${{ inputs.artifact_repo }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ inputs.region }}-docker.pkg.dev/${{ inputs.project_id }}/${{ inputs.artifact_repo }}/${{ env.IMAGE_NAME }}:latest
+
       - name: Install gke-gcloud-auth-plugin
         run: |
           gcloud components install gke-gcloud-auth-plugin
-          
+
       - name: Configure kubectl
         run: |
-          gcloud container clusters get-credentials autopilot-bo-cluster --region asia-south1 --project bo-stage
-          
+          gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
+
       - name: Deploy Helm Chart
         id: deploy
         run: |
@@ -66,4 +91,3 @@ jobs:
           else
             echo "No previous successful revision found. Unable to rollback."
             exit 1
-          fi
