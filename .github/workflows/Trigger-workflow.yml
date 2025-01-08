@@ -70,7 +70,7 @@ jobs:
                 run_id: '${{ github.run_id }}'
               }
             });
-            core.info('Triggered client workflow: build_push_gcp.yml on branch feature/docker-gcp-support.');
+            core.info('Triggered client workflow: build_push_gcp.yml on branch fearture/docker-gcp-support.');
 
       - name: Wait for Client Workflow Success
         uses: actions/github-script@v6
@@ -88,14 +88,15 @@ jobs:
                 owner: 'code-owner-betteropinions',
                 repo: 'BetterOpinions-BE-Django',
                 workflow_id: 'build_push_gcp.yml',
-                branch: 'feature/docker-gcp-support',  
+                branch: 'fearture/docker-gcp-support',  
                 status: 'completed',
                 per_page: 5  
               });
 
               const recentRuns = runs.data.workflow_runs;
               const targetRun = recentRuns.find(run => 
-                run.status === 'completed'
+                run.status === 'completed' && 
+                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)
               );
 
               if (targetRun) {
@@ -117,3 +118,4 @@ jobs:
             if (!success) {
               core.setFailed('Client workflow did not complete successfully or timed out.');
             }
+
