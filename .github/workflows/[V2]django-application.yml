@@ -1,4 +1,4 @@
-name: [v2]Deploy Backend Application and Configuration
+name: Deploy Backend Application and Configuration
 
 on:
   workflow_dispatch:
