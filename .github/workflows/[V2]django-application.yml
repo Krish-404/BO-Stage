@@ -35,20 +35,25 @@ env:
   IMAGE_NAME: backend-application
 
 jobs:
-  # setup:
-    # uses: ./.github/workflows/install.yml
-    # secrets: inherit
+  setup:
+    uses: ./.github/workflows/install.yml
+    secrets: inherit
 
   deploy:
-    # needs: setup
-    runs-on: ubuntu-latest
+    needs: setup
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Set up GCP authentication
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0.2.0
+        uses: google-github-actions/setup-gcloud@v2.1.2
         with:
           project_id: ${{ inputs.project_id }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
@@ -59,7 +64,6 @@ jobs:
           gcloud auth configure-docker ${{ inputs.region }}-docker.pkg.dev
 
       - name: Trigger Client Workflow
-        id: trigger-client-workflow
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
@@ -67,25 +71,21 @@ jobs:
             const response = await github.rest.actions.createWorkflowDispatch({
               owner: 'code-owner-betteropinions',
               repo: 'BetterOpinions-BE-Django',
-              workflow_id: 'build_push_gcp.yml', 
+              workflow_id: 'build_push_gcp.yml',  
               ref: 'fearture/docker-gcp-support', 
               inputs: {
-                project_id: '${{ inputs.project_id }}',
-                region: '${{ inputs.region }}',
-                artifact_repo: '${{ inputs.artifact_repo }}',
                 run_id: '${{ github.run_id }}'
               }
             });
-            core.info('Triggered client workflow: build_push_gcp.yml on branch main.');
+            core.info('Triggered client workflow: build_push_gcp.yml on branch fearture/docker-gcp-support.');
 
       - name: Wait for Client Workflow Success
-        id: wait-client-workflow
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
           script: |
             const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-            const maxAttempts = 30; 
+            const maxAttempts = 30;  
             const interval = 60 * 1000; 
             let attempts = 0;
             let success = false;
@@ -95,18 +95,26 @@ jobs:
                 owner: 'code-owner-betteropinions',
                 repo: 'BetterOpinions-BE-Django',
                 workflow_id: 'build_push_gcp.yml',
-                branch: 'fearture/docker-gcp-support',
-                per_page: 1
+                branch: 'fearture/docker-gcp-support',  
+                status: 'completed',
+                per_page: 5  
               });
 
-              const latestRun = runs.data.workflow_runs[0];
-              if (latestRun && latestRun.status === 'completed' && latestRun.conclusion === 'success') {
-                success = true;
-                core.info(`Client workflow succeeded. Run ID: ${latestRun.id}`);
-                break;
-              } else if (latestRun && latestRun.status === 'completed') {
-                core.setFailed('Client workflow completed but failed.');
-                break;
+              const recentRuns = runs.data.workflow_runs;
+              const targetRun = recentRuns.find(run => 
+                run.status === 'completed' && 
+                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)
+              );
+
+              if (targetRun) {
+                if (targetRun.conclusion === 'success') {
+                  success = true;
+                  core.info(`Client workflow succeeded. Run ID: ${targetRun.id}`);
+                  break;
+                } else {
+                  core.setFailed(`Client workflow completed but failed. Run ID: ${targetRun.id}`);
+                  break;
+                }
               }
 
               core.info(`Waiting for client workflow to complete... Attempt ${attempts + 1}`);
@@ -118,27 +126,27 @@ jobs:
               core.setFailed('Client workflow did not complete successfully or timed out.');
             }
 
-      # - name: Install gke-gcloud-auth-plugin
-      #   run: |
-      #     gcloud components install gke-gcloud-auth-plugin
+      - name: Install gke-gcloud-auth-plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
 
-      # - name: Configure kubectl
-      #   run: |
-      #     gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
 
-      # - name: Deploy Helm Chart
-      #   id: deploy
-      #   run: |
-      #     helm upgrade --install backend-application ./application --set image.tag=${{ github.sha }} || echo "::set-output name=deploy_failed::true"
+      - name: Deploy Helm Chart
+        id: deploy
+        run: |
+          helm upgrade --install backend-application ./application --set image.tag=${{ github.sha }} || echo "::set-output name=deploy_failed::true"
 
-      # - name: Rollback if deployment failed
-      #   if: steps.deploy.outputs.deploy_failed == 'true'
-      #   run: |
-      #     LAST_REVISION=$(helm history backend-application -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
-      #     if [ -n "$LAST_REVISION" ]; then
-      #       echo "Rolling back to revision $LAST_REVISION"
-      #       helm rollback backend-application $LAST_REVISION
-      #     else
-      #       echo "No previous successful revision found. Unable to rollback."
-      #       exit 1
-      #     fi
+      - name: Rollback if deployment failed
+        if: steps.deploy.outputs.deploy_failed == 'true'
+        run: |
+          LAST_REVISION=$(helm history backend-application -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
+          if [ -n "$LAST_REVISION" ]; then
+            echo "Rolling back to revision $LAST_REVISION"
+            helm rollback backend-application $LAST_REVISION
+          else
+            echo "No previous successful revision found. Unable to rollback."
+            exit 1
+          fi
