@@ -73,7 +73,7 @@ jobs:
                 project_id: '${{ inputs.project_id }}',
                 region: '${{ inputs.region }}',
                 artifact_repo: '${{ inputs.artifact_repo }}'
-                run_id: '${{ run_id }}'
+                run_id: '${{ github. run_id }}'
               }
             });
             core.info('Triggered client workflow: build_push_gcp.yml on branch main.');
