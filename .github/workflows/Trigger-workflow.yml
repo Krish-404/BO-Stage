@@ -72,7 +72,7 @@ jobs:
             });
             core.info('Triggered client workflow: build_push_gcp.yml on branch feature/docker-gcp-support.');
 
-- name: Wait for Client Workflow Success
+      - name: Wait for Client Workflow Success
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TRIGGER_REPO_PAT }}
@@ -90,13 +90,13 @@ jobs:
                 workflow_id: 'build_push_gcp.yml',
                 branch: 'feature/docker-gcp-support',  
                 status: 'completed',
-                per_page: 5  // Fetch the last 5 completed runs
+                per_page: 5  
               });
 
               const recentRuns = runs.data.workflow_runs;
               const targetRun = recentRuns.find(run => 
                 run.status === 'completed' && 
-                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)  // Within last 10 minutes
+                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)
               );
 
               if (targetRun) {
