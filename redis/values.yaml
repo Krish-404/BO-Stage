@@ -472,6 +472,7 @@ master:
     enabled: true
     ## @param master.persistence.medium Provide a medium for `emptyDir` volumes.
     ##
+    existingClaim: "redis-data-redis-master-0"
     medium: ""
     ## @param master.persistence.sizeLimit Set this to enable a size limit for `emptyDir` volumes.
     ##
