@@ -80,7 +80,7 @@ jobs:
               workflow_id: 'build_push_gcp.yml',  
               ref: '${{ inputs.branch_name }}',  
               inputs: {
-                run_id: '${{ github.run_id }}'
+                run_id: '${{ github.run_id }}',
                 branch: '${{ inputs.branch_name }}'
               }
             });
