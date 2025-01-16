@@ -1,14 +1,14 @@
 global:
   environment: staging
-  image:
-    repository: asia-south1-docker.pkg.dev/bo-stage/bo-main/django-backend
-    tag: latest
 
 configMap:
   name: better-backend-app-config
 
 streamer:
   appName: better-backend-app-streamer
+  image:
+    repository: asia-south1-docker.pkg.dev/bo-stage/bo-main/2024-11-01-new
+    tag: latest
   replicas: 1
   resources:
     requests:
