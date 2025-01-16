@@ -35,6 +35,11 @@ on:
         required: false
         type: string
         default: 'main,migration,beat,sockets,streamer'
+      branch_name:
+        description: 'Branch to run the workflow on'
+        required: true
+        type: string
+        default: 'fearture/docker-gcp-support'
 
 env:
   IMAGE_NAME: backend-application
@@ -64,68 +69,69 @@ jobs:
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
 
-      # - name: Trigger Client Workflow
-      #   uses: actions/github-script@v6
-      #   with:
-      #     github-token: ${{ secrets.TRIGGER_REPO_PAT }}
-      #     script: |
-      #       const response = await github.rest.actions.createWorkflowDispatch({
-      #         owner: 'code-owner-betteropinions',
-      #         repo: 'BetterOpinions-BE-Django',
-      #         workflow_id: 'build_push_gcp.yml',  
-      #         ref: 'fearture/docker-gcp-support', 
-      #         inputs: {
-      #           run_id: '${{ github.run_id }}'
-      #         }
-      #       });
-      #       core.info('Triggered client workflow: build_push_gcp.yml on branch fearture/docker-gcp-support.');
+      - name: Trigger Client Workflow
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.TRIGGER_REPO_PAT }}
+          script: |
+            const response = await github.rest.actions.createWorkflowDispatch({
+              owner: 'code-owner-betteropinions',
+              repo: 'BetterOpinions-BE-Django',
+              workflow_id: 'build_push_gcp.yml',  
+              ref: '${{ inputs.branch_name }}',  
+              inputs: {
+                run_id: '${{ github.run_id }}'
+                branch: '${{ inputs.branch_name }}'
+              }
+            });
+            core.info('Triggered client workflow: build_push_gcp.yml on branch ${{ inputs.branch_name }}');
 
-      # - name: Wait for Client Workflow Success
-      #   uses: actions/github-script@v6
-      #   with:
-      #     github-token: ${{ secrets.TRIGGER_REPO_PAT }}
-      #     script: |
-      #       const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-      #       const maxAttempts = 30;  
-      #       const interval = 60 * 1000; 
-      #       let attempts = 0;
-      #       let success = false;
+      - name: Wait for Client Workflow Success
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.TRIGGER_REPO_PAT }}
+          script: |
+            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const maxAttempts = 30;  
+            const interval = 60 * 1000; 
+            let attempts = 0;
+            let success = false;
 
-      #       while (attempts < maxAttempts) {
-      #         const runs = await github.rest.actions.listWorkflowRuns({
-      #           owner: 'code-owner-betteropinions',
-      #           repo: 'BetterOpinions-BE-Django',
-      #           workflow_id: 'build_push_gcp.yml',
-      #           branch: 'fearture/docker-gcp-support',  
-      #           status: 'completed',
-      #           per_page: 5  
-      #         });
+            while (attempts < maxAttempts) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: 'code-owner-betteropinions',
+                repo: 'BetterOpinions-BE-Django',
+                workflow_id: 'build_push_gcp.yml',
+                branch: 'fearture/docker-gcp-support',  
+                status: 'completed',
+                per_page: 5  
+              });
 
-      #         const recentRuns = runs.data.workflow_runs;
-      #         const targetRun = recentRuns.find(run => 
-      #           run.status === 'completed' && 
-      #           new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)
-      #         );
+              const recentRuns = runs.data.workflow_runs;
+              const targetRun = recentRuns.find(run => 
+                run.status === 'completed' && 
+                new Date(run.created_at) > new Date(Date.now() - 10 * 60 * 1000)
+              );
 
-      #         if (targetRun) {
-      #           if (targetRun.conclusion === 'success') {
-      #             success = true;
-      #             core.info(`Client workflow succeeded. Run ID: ${targetRun.id}`);
-      #             break;
-      #           } else {
-      #             core.setFailed(`Client workflow completed but failed. Run ID: ${targetRun.id}`);
-      #             break;
-      #           }
-      #         }
+              if (targetRun) {
+                if (targetRun.conclusion === 'success') {
+                  success = true;
+                  core.info(`Client workflow succeeded. Run ID: ${targetRun.id}`);
+                  break;
+                } else {
+                  core.setFailed(`Client workflow completed but failed. Run ID: ${targetRun.id}`);
+                  break;
+                }
+              }
 
-      #         core.info(`Waiting for client workflow to complete... Attempt ${attempts + 1}`);
-      #         await wait(interval);
-      #         attempts++;
-      #       }
+              core.info(`Waiting for client workflow to complete... Attempt ${attempts + 1}`);
+              await wait(interval);
+              attempts++;
+            }
 
-      #       if (!success) {
-      #         core.setFailed('Client workflow did not complete successfully or timed out.');
-      #       }
+            if (!success) {
+              core.setFailed('Client workflow did not complete successfully or timed out.');
+            }
 
       - name: Install gke-gcloud-auth-plugin
         run: |
