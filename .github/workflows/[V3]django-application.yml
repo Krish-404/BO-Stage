@@ -1,4 +1,4 @@
-name: A V3 Backend Application and Configuration
+name: V3 Backend Application and Configuration
 
 on:
   workflow_dispatch:
