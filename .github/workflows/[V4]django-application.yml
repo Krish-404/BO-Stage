@@ -145,15 +145,21 @@ jobs:
             if [ -d "application-${SERVICE}" ]; then
               echo "Deploying application-${SERVICE}"
               
+              # Use the old release name for main service
+              RELEASE_NAME="backend-${SERVICE}"
+              if [ "$SERVICE" = "main" ]; then
+                RELEASE_NAME="backend-application"
+              fi
+              
               # Deploy the service
-              if ! helm upgrade --install "backend-${SERVICE}" "./application-${SERVICE}" --set image.tag=${{ github.sha }}; then
+              if ! helm upgrade --install "${RELEASE_NAME}" "./application-${SERVICE}" --set image.tag=${{ github.sha }}; then
                 echo "Deployment failed for ${SERVICE}"
                 
                 # Rollback this specific service
-                LAST_REVISION=$(helm history "backend-${SERVICE}" -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
+                LAST_REVISION=$(helm history "${RELEASE_NAME}" -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
                 if [ -n "$LAST_REVISION" ]; then
-                  echo "Rolling back backend-${SERVICE} to revision $LAST_REVISION"
-                  helm rollback "backend-${SERVICE}" $LAST_REVISION
+                  echo "Rolling back ${RELEASE_NAME} to revision $LAST_REVISION"
+                  helm rollback "${RELEASE_NAME}" $LAST_REVISION
                 fi
                 
                 echo "::error::Failed to deploy ${SERVICE}"
