@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: {{ .Values.beat.appName }}
-          image: {{ .Values.django.image.repository }}:{{ .Values.django.image.tag }}
+          image: {{ .Values.beat.image.repository }}:{{ .Values.beat.image.tag }}
           command: ["/bin/bash", "config/celery_beat_worker.sh"]
           envFrom:
             - configMapRef:
