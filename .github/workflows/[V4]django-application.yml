@@ -80,8 +80,7 @@ jobs:
               workflow_id: 'build_push_gcp.yml',  
               ref: '${{ inputs.branch_name }}',  
               inputs: {
-                run_id: '${{ github.run_id }}',
-                branch: '${{ inputs.branch_name }}'
+                run_id: '${{ github.run_id }}'
               }
             });
             core.info('Triggered client workflow: build_push_gcp.yml on branch ${{ inputs.branch_name }}');
