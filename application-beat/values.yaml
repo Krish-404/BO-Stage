@@ -7,7 +7,7 @@ configMap:
 beat:
   appName: better-backend-app-beat
   image:
-    repository: asia-south1-docker.pkg.dev/bo-stage/bo-main/django-backend
+    repository: asia-south1-docker.pkg.dev/bo-stage/bo-main/2024-11-01-new
     tag: latest
   replicas: 1
   resources:
