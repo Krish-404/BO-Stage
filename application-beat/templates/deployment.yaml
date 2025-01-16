@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment 
+metadata:
+  name: {{ .Values.beat.appName }}
+  labels:
+    app: {{ .Values.beat.appName }}
+spec:
+  replicas: {{ .Values.beat.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.beat.appName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.beat.appName }}
+    spec:
+      containers:
+        - name: {{ .Values.beat.appName }}
+          image: {{ .Values.global.image.repository }}:{{ .Values.global.image.tag }}
+          command: ["/bin/bash", "config/celery_beat_worker.sh"]
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.configMap.name }}
+          resources:
+            requests:
+              memory: {{ .Values.beat.resources.requests.memory }}
+              cpu: {{ .Values.beat.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.beat.resources.limits.memory }}
+              cpu: {{ .Values.beat.resources.limits.cpu }}

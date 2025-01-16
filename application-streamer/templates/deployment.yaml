@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment 
+metadata:
+  name: {{ .Values.streamer.appName }}
+  labels:
+    app: {{ .Values.streamer.appName }}
+spec:
+  replicas: {{ .Values.streamer.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.streamer.appName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.streamer.appName }}
+    spec:
+      containers:
+        - name: {{ .Values.streamer.appName }}
+          image: {{ .Values.global.image.repository }}:{{ .Values.global.image.tag }}
+          command: ["python", "manage.py", "streamer"]
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.configMap.name }}
+          resources:
+            requests:
+              memory: {{ .Values.streamer.resources.requests.memory }}
+              cpu: {{ .Values.streamer.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.streamer.resources.limits.memory }}
+              cpu: {{ .Values.streamer.resources.limits.cpu }}
