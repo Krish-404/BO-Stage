@@ -1,4 +1,4 @@
-name: version latest Backend Application and Configuration
+name: Backend Application and Configuration
 
 on:
   workflow_dispatch:
@@ -30,6 +30,11 @@ on:
           - bo-backend-django
           - bo-backend-node
           - bo-backend-go
+      services_order:
+        description: 'Specify services to deploy (comma-separated)'
+        required: false
+        type: string
+        default: 'migration,beat,sockets,streamer'
 
 env:
   IMAGE_NAME: backend-application
@@ -130,19 +135,78 @@ jobs:
         run: |
           gcloud container clusters get-credentials autopilot-bo-cluster --region ${{ inputs.region }} --project ${{ inputs.project_id }}
 
-      - name: Deploy Helm Chart
-        id: deploy
+      - name: Deploy Main Application
+        id: deploy-main
         run: |
-          helm upgrade --install backend-application ./application --set image.tag=${{ github.sha }} || echo "::set-output name=deploy_failed::true"
+          if ! helm upgrade --install backend-application ./application --set image.tag=${{ github.sha }}; then
+            echo "::set-output name=deploy_failed::true"
+          fi
 
-      - name: Rollback if deployment failed
-        if: steps.deploy.outputs.deploy_failed == 'true'
+      - name: Rollback Main Application if failed
+        if: steps.deploy-main.outputs.deploy_failed == 'true'
         run: |
           LAST_REVISION=$(helm history backend-application -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
           if [ -n "$LAST_REVISION" ]; then
-            echo "Rolling back to revision $LAST_REVISION"
+            echo "Rolling back main application to revision $LAST_REVISION"
             helm rollback backend-application $LAST_REVISION
-          else
-            echo "No previous successful revision found. Unable to rollback."
+            exit 1
+          fi
+
+      - name: Deploy Individual Services
+        if: steps.deploy-main.outputs.deploy_failed != 'true'
+        run: |
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services_order }}"
+          
+          for SERVICE in "${SERVICES[@]}"; do
+            SERVICE=$(echo $SERVICE | tr -d ' ')
+            if [ -d "application-${SERVICE}" ]; then
+              echo "Deploying application-${SERVICE}"
+              
+              # Deploy the service
+              if ! helm upgrade --install "backend-${SERVICE}" "./application-${SERVICE}" --set image.tag=${{ github.sha }}; then
+                echo "Deployment failed for ${SERVICE}"
+                
+                # Rollback this specific service
+                LAST_REVISION=$(helm history "backend-${SERVICE}" -o json | jq -r '.[] | select(.status == "deployed") | .revision' | sort -rn | head -n 1)
+                if [ -n "$LAST_REVISION" ]; then
+                  echo "Rolling back backend-${SERVICE} to revision $LAST_REVISION"
+                  helm rollback "backend-${SERVICE}" $LAST_REVISION
+                fi
+                
+                echo "::error::Failed to deploy ${SERVICE}"
+                continue
+              fi
+              
+              echo "Successfully deployed ${SERVICE}"
+            else
+              echo "Warning: Directory application-${SERVICE} not found, skipping..."
+            fi
+          done
+
+      - name: Deployment Status
+        run: |
+          # Check status of main application
+          MAIN_STATUS=$(helm status backend-application -o json | jq -r '.info.status')
+          echo "Main Application Status: $MAIN_STATUS"
+
+          # Check status of each service
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services_order }}"
+          FAILED=false
+          
+          for SERVICE in "${SERVICES[@]}"; do
+            SERVICE=$(echo $SERVICE | tr -d ' ')
+            if helm status "backend-${SERVICE}" &>/dev/null; then
+              STATUS=$(helm status "backend-${SERVICE}" -o json | jq -r '.info.status')
+              echo "${SERVICE} Status: $STATUS"
+              if [ "$STATUS" != "deployed" ]; then
+                FAILED=true
+              fi
+            else
+              echo "${SERVICE} not deployed"
+            fi
+          done
+
+          if [ "$FAILED" = true ]; then
+            echo "One or more deployments failed"
             exit 1
           fi
